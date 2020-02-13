@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import DataParallel
-from gazenet import GazeNet
+from gazeFollow.gazenet import GazeNet
 
 import time
 import os
@@ -24,8 +24,8 @@ import logging
 
 from scipy import signal
 
-from utils import data_transforms
-from utils import get_paste_kernel, kernel_map
+from gazeFollow.utils import data_transforms
+from gazeFollow.utils import get_paste_kernel, kernel_map
 
 def generate_data_field(eye_point):
     """eye_point is (x, y) and between 0 and 1"""
@@ -102,7 +102,7 @@ def test(net, test_image_path, eye):
     f_point = np.array([w_index / 56., h_index / 56.])
 
 
-    return heatmap, f_point[0], f_point[1] 
+    return heatmap, f_point[0], f_point[1]
 
 def draw_result(image_path, eye, heatmap, gaze_point):
     x1, y1 = eye
@@ -124,9 +124,9 @@ def draw_result(image_path, eye, heatmap, gaze_point):
     heatmap = (0.8 * heatmap.astype(np.float32) + 0.2 * im.astype(np.float32)).astype(np.uint8)
     img = np.concatenate((im, heatmap), axis=1)
     cv2.imwrite('tmp.png', img)
-    
+
     return img
-    
+
 def main():
 
     net = GazeNet()
@@ -138,7 +138,7 @@ def main():
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
     model_dict.update(pretrained_dict)
     net.load_state_dict(model_dict)
-    
+
     test_image_path = sys.argv[1]
     x = float(sys.argv[2])
     y = float(sys.argv[3])
@@ -147,7 +147,7 @@ def main():
 
     print(p_x, p_y)
 
-    
+
 if __name__ == '__main__':
     main()
 

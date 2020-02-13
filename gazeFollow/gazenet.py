@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import DataParallel
 import gazeFollow.resnet as M
-import resnet_fpn as resnet_fpn
+import gazeFollow.resnet_fpn as resnet_fpn
 
 
 # Feature Pyramid Network

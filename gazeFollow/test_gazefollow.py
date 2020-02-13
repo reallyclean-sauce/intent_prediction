@@ -6,7 +6,7 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import DataParallel
-from gazenet import GazeNet
+from gazeFollow.gazenet import GazeNet
 
 import time
 import os
@@ -23,8 +23,8 @@ import logging
 
 from scipy import signal
 
-from utils import data_transforms
-from utils import get_paste_kernel, kernel_map
+from gazeFollow.utils import data_transforms
+from gazeFollow.utils import get_paste_kernel, kernel_map
 
 # log setting
 log_dir = 'log/'
@@ -93,7 +93,7 @@ class GazeDataset(Dataset):
             eye = [1.0 - eye[0], eye[1]]
             gaze = [1.0 - gaze[0], gaze[1]]
             image = cv2.flip(image, 1)
-            
+
         # crop face
         x_c, y_c = eye
         x_0 = x_c - 0.15
@@ -197,14 +197,14 @@ def test(net, test_data_loader):
             f_error = f_point - gt_point
             f_dist = np.sqrt(f_error[0] ** 2 + f_error[1] ** 2)
 
-            # angle 
+            # angle
             f_direction = f_point - eye_point
             gt_direction = gt_point - eye_point
 
             norm_m = (m_direction[0] **2 + m_direction[1] ** 2 ) ** 0.5
             norm_f = (f_direction[0] **2 + f_direction[1] ** 2 ) ** 0.5
             norm_gt = (gt_direction[0] **2 + gt_direction[1] ** 2 ) ** 0.5
-            
+
             m_cos_sim = (m_direction[0]*gt_direction[0] + m_direction[1]*gt_direction[1]) / \
                         (norm_gt * norm_m + 1e-6)
             m_cos_sim = np.maximum(np.minimum(m_cos_sim, 1.0), -1.0)
@@ -215,7 +215,7 @@ def test(net, test_data_loader):
             f_cos_sim = np.maximum(np.minimum(f_cos_sim, 1.0), -1.0)
             f_angle = np.arccos(f_cos_sim) * 180 / np.pi
 
-            
+
             total_error.append([f_dist, m_angle, f_angle])
             info_list.append(list(f_point))
     info_list = np.array(info_list)
@@ -248,7 +248,7 @@ def main():
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
     model_dict.update(pretrained_dict)
     net.load_state_dict(model_dict)
-    
+
     test(net, test_data_loader)
 
 
