@@ -4,7 +4,7 @@ import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn import DataParallel
-import resnet as M
+import gazeFollow.resnet as M
 import resnet_fpn as resnet_fpn
 
 
@@ -34,7 +34,7 @@ class FPN(nn.Module):
         # predict heatmap
         self.sigmoid = nn.Sigmoid()
         self.predict = nn.Conv2d(256, 1, (3, 3), padding=1)
- 
+
     def top_down(self, x):
         c2, c3, c4, c5 = x
         p5 = self.c5_conv(c5)
@@ -77,9 +77,9 @@ class GazeNet(nn.Module):
                                     nn.Linear(256, 2))
 
         self.relu = nn.ReLU(inplace=False)
-       
-        # change first conv layer for fpn_net because we concatenate 
-        # multi-scale gaze field with image image 
+
+        # change first conv layer for fpn_net because we concatenate
+        # multi-scale gaze field with image image
         conv = [x.clone() for x in self.fpn_net.resnet.conv1.parameters()][0]
         new_kernel_channel = conv.data.mean(dim=1, keepdim=True).repeat(1, 3, 1, 1)
         new_kernel = torch.cat((conv.data, new_kernel_channel), 1)
