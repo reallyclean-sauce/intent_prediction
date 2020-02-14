@@ -51,7 +51,7 @@ import torch.nn.functional as F
 from torch.nn import DataParallel
 
 # Import gazeFollow Libraries
-import gazeFollow_functions as gazeFollow
+import gazeFollow_functions as gFF
 
 
 
