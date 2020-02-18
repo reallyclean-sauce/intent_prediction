@@ -39,6 +39,7 @@ from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog
+import matplotlib.pyplot as plt
 
 # import torch libraries
 import torch
@@ -60,6 +61,7 @@ class intentClassifier:
     def __init__(self):
         # Predict Object Classifications of objects
         # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
+        cfg = get_cfg()
         cfg.merge_from_file(model_zoo.get_config_file("COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
         # Find a model from detectron2's model zoo. You can either use the https://dl.fbaipublicfiles.... url, or use the detectron2:// shorthand
@@ -69,31 +71,43 @@ class intentClassifier:
 
         # Predict Keypoints of humans
         cfg = get_cfg()
-        cfg.merge_from_file("./detectron2_repo/configs/COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")
+        cfg.merge_from_file(model_zoo.get_config_file("COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"))
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set threshold for this model
         cfg.MODEL.WEIGHTS = "detectron2://COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x/137849621/model_final_a6e10b.pkl"
         self.humanKP_cfg = cfg
         self.human_keypoint = DefaultPredictor(cfg)
         
         self.debug = 0 # default to not debug
+        
+    # Orig size img -> 224x224 image
+    def preprocess(self, img):
+        dim = (224, 224)
+        # resize image
+        resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA) 
+        
+        return resized
+        
 
     # Output: head_pos, head_img
     def head_detect(self, img):
+        # Preprocess the image first
+        
+        
         # Use detectron2 to extract human keypoints
         outputs = self.human_keypoint(img)
         
         if self.debug:
-            v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
+            v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(self.humanKP_cfg.DATASETS.TRAIN[0]), scale=1.2)
             v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
             # cv2_imshow(v.get_image()[:, :, ::-1])
             plt.imshow(v.get_image()[:, :, ::-1], CMAP='gray')
-            print(v.get_image().shape)
+            # print(v.get_image().shape)
 
         # Extract the position from the human keypoints
         # !!!! Check this with pixel_pos_sampler !!!!
         b = outputs["instances"][0:1].pred_keypoints
         x = b.int()
-        head_pos = x[0][0][0:2].to("cpu").numpy() # Position of nose
+        head_pos = (x[0][0][0:2].to("cpu").numpy())/(224) # Position of nose
 
         # For position of middle of eye
         # diff1 = np.linalg.norm(x[0][0][0:2].to("cpu").numpy().all(),x[0][1][0:2].to("cpu").numpy().all()) # nose -> first eye
@@ -106,12 +120,34 @@ class intentClassifier:
         left_eye = x[0][1][0:2].to("cpu").numpy()
         right_eye = x[0][2][0:2].to("cpu").numpy()
 
-        head_pos = [left_eye,
-                    right_eye,
-                    left_shoulder,
-                    right_shoulder]
-
-
+        # head_pos = [left_eye,
+        #             right_eye,
+        #             left_shoulder,
+        #             right_shoulder]
+        
+        eye = (left_eye+right_eye)/(224*2)
+        # eye = head_pos
+        
+        print(head_pos, eye)
+        
+        # crop face
+        x_c, y_c = head_pos
+        x_0 = x_c - 0.15
+        y_0 = y_c - 0.15
+        x_1 = x_c + 0.15
+        y_1 = y_c + 0.15
+        if x_0 < 0:
+            x_0 = 0
+        if y_0 < 0:
+            y_0 = 0
+        if x_1 > 1:
+            x_1 = 1
+        if y_1 > 1:
+            y_1 = 1
+    
+        h, w = img.shape[:2]
+        head_img = img[int(y_0 * h):int(y_1 * h), int(x_0 * w):int(x_1 * w), :]
+        
 
         return head_pos, head_img
 
@@ -155,9 +191,23 @@ class intentClassifier:
 
         return decision
     
-def main():
-    classifier = intentClassifier()
-    classifier.debug = 1
-    
-    
+# def main():
+classifier = intentClassifier()
+classifier.debug = 1
+
+im = cv2.imread('./imgs/input.jpg')
+plt.imshow(im, CMAP='gray')
+# print((im.shape))
+# pause;
+
+# One loop:
+im_processed = classifier.preprocess(im)
+
+eye_pos, head = classifier.head_detect(im_processed)
+
+print(eye_pos)
+plt.imshow(head)
+
+# if __name__ == '__main__':
+#     main()
 
