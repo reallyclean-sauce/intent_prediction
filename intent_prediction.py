@@ -64,6 +64,7 @@ class intentClassifier:
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
         # Find a model from detectron2's model zoo. You can either use the https://dl.fbaipublicfiles.... url, or use the detectron2:// shorthand
         cfg.MODEL.WEIGHTS = "detectron2://COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x/137849600/model_final_f10217.pkl"
+        self.objectRec_cfg = cfg
         self.object_recog = DefaultPredictor(cfg)
 
         # Predict Keypoints of humans
@@ -71,12 +72,22 @@ class intentClassifier:
         cfg.merge_from_file("./detectron2_repo/configs/COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml")
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set threshold for this model
         cfg.MODEL.WEIGHTS = "detectron2://COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x/137849621/model_final_a6e10b.pkl"
+        self.humanKP_cfg = cfg
         self.human_keypoint = DefaultPredictor(cfg)
+        
+        self.debug = 0 # default to not debug
 
     # Output: head_pos, head_img
     def head_detect(self, img):
         # Use detectron2 to extract human keypoints
         outputs = self.human_keypoint(img)
+        
+        if self.debug:
+            v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.2)
+            v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+            # cv2_imshow(v.get_image()[:, :, ::-1])
+            plt.imshow(v.get_image()[:, :, ::-1], CMAP='gray')
+            print(v.get_image().shape)
 
         # Extract the position from the human keypoints
         # !!!! Check this with pixel_pos_sampler !!!!
@@ -143,4 +154,10 @@ class intentClassifier:
         # Insert filter code here
 
         return decision
+    
+def main():
+    classifier = intentClassifier()
+    classifier.debug = 1
+    
+    
 
