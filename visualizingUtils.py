@@ -59,7 +59,6 @@ class drawer:
         return img
     
     
-    
     def drawTask(self, img, task):
         
         # Decide task
@@ -80,19 +79,20 @@ class drawer:
         
         return text_proc
     
-    def getVid(self, frames, name):
+    @staticmethod
+    def getVid(frames, name):
         
-        self.out = cv2.VideoWriter(f'./vidss/{name}.avi',cv2.VideoWriter_fourcc(*'DIVX'), 10, self.size)
+        out = cv2.VideoWriter(f'./vidss/{name}.avi',cv2.VideoWriter_fourcc(*'DIVX'), 30, self.size)
         
         
         height, width, layers = frames[0].shape
-        self.size = (width,height)
+        size = (width,height)
         
         for frame in frames:
             # Append the visualized image to the output video
-            self.out.write(frame)
+            out.write(frame)
         
-        self.out.release()
+        out.release()
     
 
 if __name__ == '__main__':
