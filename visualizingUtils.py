@@ -81,8 +81,9 @@ class drawer:
     
     @staticmethod
     def getVid(frames, name):
+        size = (224, 224)
         
-        out = cv2.VideoWriter(f'./vidss/{name}.avi',cv2.VideoWriter_fourcc(*'DIVX'), 30, self.size)
+        out = cv2.VideoWriter(f'./vidss/{name}.avi',cv2.VideoWriter_fourcc(*'DIVX'), 30, size)
         
         
         height, width, layers = frames[0].shape
