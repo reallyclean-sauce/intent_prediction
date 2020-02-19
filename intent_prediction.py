@@ -52,6 +52,7 @@ import torch.nn.functional as F
 from torch.nn import DataParallel
 
 # Import gazeFollow Libraries
+import visualizingUtils.drawer as drawer
 import gazeFollow_functions as gFF
 
 
@@ -80,38 +81,72 @@ class intentClassifier:
         self.debug = 0 # default to not debug
         
         self.head_pos_arr = np.array([[]])
+        
     
     # Input: Video
     # Output: Task Category
-    def predict_task(self, vidpath):
-        # Get the video
-        try:
-            vidcap = cv2.VideoCapture(vidpath)
-            success,image = vidcap.read()
-        except:
-            raise SystemExit("File does not exist!)
-                             
+    def predictTask(self, vid):
         # Get the FPS
-        fps = vidcap.get(cv2.CAP_PROP_FPS)
+        fps = vid.get(cv2.CAP_PROP_FPS)
         print ("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
         
+        # Validate if working
+        success,img = vid.read(cv2.CAP_PROP_FPS)
+        if not success:
+            raise SystemExit("Video does not exist!")
         
+        posFilter_ans = []
+        count = 0
+        while success:
+            if not count % (int(fps/10)): # Get 10 frames per total fps
+                # progress bar
+                print("Percent Completion: ", fps/10)
+                
+                continue
+                
+                # Apply Head Detection
+                head_pos = self.headDetect(img)
+                
+                # Apply filter
+                decision = posFilter(head_pos)
+                posFilter_ans.append(decision)
+                
+                # Append head pos to head pos array
+                self.head_pos_arr = np.append(self.head_pos_arr,[head_pos],axis=1)
+                
+                # Visualize prediction                
+                # if decision:
+                #     self.drawer.drawTask(img, 'undet')
+                # else:
+                #     self.drawer.drawTask(img, 'spont')
+                
         
+            
+            success,img = vid.read(cv2.CAP_PROP_FPS)
+            count += 1
         
+        print(posFilter_ans)
+        print(head_pos_arr)
+        # Get the visualized video
+        # self.drawer.getVid()
         
+        task_category = 'spont'
         return task_category
         
     # Orig size img -> 224x224 image
-    def preprocess(self, img):
+    def preProcess(self, img):
         dim = (224, 224)
         # resize image
         resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA) 
+        
+        print("HALLOO")
+        cv2.imwrite('./imgs/processed.png', resized)
         
         return resized
         
 
     # Output: head_pos, head_img
-    def head_detect(self, img):
+    def headDetect(self, img):
         # Preprocess the image first
         
         
@@ -139,14 +174,12 @@ class intentClassifier:
         
         # print(head_pos, eye)
         
-        self.head_pos_arr = np.append(self.head_pos_arr,[head_pos],axis=1)
-        
 
-        return head_pos, head_img
+        return head_pos
 
     # Output: Gaze Pathway Probability Map
     # Size: 224x224
-    def predict_pathway(self, img, head_pos):
+    def predictGazeDir(self, img, head_pos):
         # Get head img
         # crop face
         x_c, y_c = head_pos
@@ -173,13 +206,13 @@ class intentClassifier:
 
     # Output: Gaze Area
     # Size: 224x224 image
-    def predict_heatmap(self, img, gaze_pathway):
+    def predictHeatMap(self, img, gaze_pathway):
         # Insert code here
 
         return gaze_area
 
     # Output: gazed_object_label, gazed_object_image
-    def object_recog(self, img, heatmap_pathway):
+    def objectRecog(self, img, heatmap_pathway):
         # Use detectron2 to extract objects in the image
         outputs = self.object_recog(img)
 
@@ -191,7 +224,7 @@ class intentClassifier:
     # Filter
     # Binary Output
     # Check if subject is moving
-    def position_filter(self, head_pos):
+    def posFilter(self, head_pos):
         # Insert filter code here
         mean = np.mean(self.head_pos_arr)
         std_dev = np.std(self.head_pos_arr)
@@ -206,32 +239,33 @@ class intentClassifier:
     # Filter
     # Binary Output
     # Check if gaze is towards the area/objets
-    def gaze_filter(self, img, gaze_direction):
+    def gazeFilter(self, img, gaze_direction):
         # Insert filter code here
         return decision
     
 # def main():
-classifier = intentClassifier()
-classifier.debug = 1
-
-im = cv2.imread('./imgs/pauline_bag.png')
-plt.imshow(im, CMAP='gray')
-# print((im.shape))
-# pause;
-
-# One loop:
-im_processed = classifier.preprocess(im)
-
-eye_pos, head = classifier.head_detect(im_processed)
-
-print(eye_pos)
-plt.imshow(head)
-
-# x = np.array([[1,0]])
-# x = np.append(x, [[1,0]], axis=0)
-# print(x)
+    # classifier = intentClassifier()
+    # classifier.debug = 1
+    
+    # im = cv2.imread('./imgs/pauline_bag.png')
+    # plt.imshow(im, CMAP='gray')
+    # # print((im.shape))
+    # # pause;
+    
+    # # One loop:
+    # im_processed = classifier.preProcess(im)
+    
+    # eye_pos = classifier.headDetect(im_processed)
 
 
 # if __name__ == '__main__':
 #     main()
+        
+vidpath = './vidss/001_Task5_2.MOV'
+vid = cv2.VideoCapture(vidpath)
+classifier = intentClassifier()
+
+classifier.predictTask(vid)
+
+
 
