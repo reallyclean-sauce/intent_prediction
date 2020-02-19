@@ -75,9 +75,31 @@ class intentClassifier:
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set threshold for this model
         cfg.MODEL.WEIGHTS = "detectron2://COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x/137849621/model_final_a6e10b.pkl"
         self.humanKP_cfg = cfg
-        self.human_keypoint = DefaultPredictor(cfg)
+        self.human_keypoint = DefaultPredictor(cfg) 
         
         self.debug = 0 # default to not debug
+        
+        self.head_pos_arr = np.array([[]])
+    
+    # Input: Video
+    # Output: Task Category
+    def predict_task(self, vidpath):
+        # Get the video
+        try:
+            vidcap = cv2.VideoCapture(vidpath)
+            success,image = vidcap.read()
+        except:
+            raise SystemExit("File does not exist!)
+                             
+        # Get the FPS
+        fps = vidcap.get(cv2.CAP_PROP_FPS)
+        print ("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
+        
+        
+        
+        
+        
+        return task_category
         
     # Orig size img -> 224x224 image
     def preprocess(self, img):
@@ -96,40 +118,36 @@ class intentClassifier:
         # Use detectron2 to extract human keypoints
         outputs = self.human_keypoint(img)
         
+        # Set for debugging: Shows the output image from model
         if self.debug:
             v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(self.humanKP_cfg.DATASETS.TRAIN[0]), scale=1.2)
             v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-            # cv2_imshow(v.get_image()[:, :, ::-1])
             plt.imshow(v.get_image()[:, :, ::-1], CMAP='gray')
-            # print(v.get_image().shape)
 
         # Extract the position from the human keypoints
-        # !!!! Check this with pixel_pos_sampler !!!!
         b = outputs["instances"][0:1].pred_keypoints
         x = b.int()
         head_pos = (x[0][0][0:2].to("cpu").numpy())/(224) # Position of nose
 
-        # For position of middle of eye
-        # diff1 = np.linalg.norm(x[0][0][0:2].to("cpu").numpy().all(),x[0][1][0:2].to("cpu").numpy().all()) # nose -> first eye
-        # diff2 = np.linalg.norm(x[0][0],x[0][2]) # nose -> second eye
-        # ave_diff = (diff1+diff2)/2
-
-        ## Add head extraction code here
-        left_shoulder = x[0][5][0:2].to("cpu").numpy()
-        right_shoulder = x[0][6][0:2].to("cpu").numpy()
+        # Eye positions
         left_eye = x[0][1][0:2].to("cpu").numpy()
         right_eye = x[0][2][0:2].to("cpu").numpy()
-
-        # head_pos = [left_eye,
-        #             right_eye,
-        #             left_shoulder,
-        #             right_shoulder]
         
+        # For ablation study: Check which has better accuracy
         eye = (left_eye+right_eye)/(224*2)
         # eye = head_pos
         
-        print(head_pos, eye)
+        # print(head_pos, eye)
         
+        self.head_pos_arr = np.append(self.head_pos_arr,[head_pos],axis=1)
+        
+
+        return head_pos, head_img
+
+    # Output: Gaze Pathway Probability Map
+    # Size: 224x224
+    def predict_pathway(self, img, head_pos):
+        # Get head img
         # crop face
         x_c, y_c = head_pos
         x_0 = x_c - 0.15
@@ -148,13 +166,8 @@ class intentClassifier:
         h, w = img.shape[:2]
         head_img = img[int(y_0 * h):int(y_1 * h), int(x_0 * w):int(x_1 * w), :]
         
-
-        return head_pos, head_img
-
-    # Output: Gaze Pathway Probability Map
-    # Size: 224x224
-    def predict_pathway(self, img, head_pos, head_img):
-        # Insert code here
+        # Insert code here       
+        
 
         return gaze_pathway
 
@@ -178,8 +191,15 @@ class intentClassifier:
     # Filter
     # Binary Output
     # Check if subject is moving
-    def position_filter(self, img, head_pos_arr):
+    def position_filter(self, head_pos):
         # Insert filter code here
+        mean = np.mean(self.head_pos_arr)
+        std_dev = np.std(self.head_pos_arr)
+        
+        if head_pos < (mean + std_dev):
+            decision = True
+        else:
+            decision = False
 
         return decision
 
@@ -188,14 +208,13 @@ class intentClassifier:
     # Check if gaze is towards the area/objets
     def gaze_filter(self, img, gaze_direction):
         # Insert filter code here
-
         return decision
     
 # def main():
 classifier = intentClassifier()
 classifier.debug = 1
 
-im = cv2.imread('./imgs/input.jpg')
+im = cv2.imread('./imgs/pauline_bag.png')
 plt.imshow(im, CMAP='gray')
 # print((im.shape))
 # pause;
@@ -207,6 +226,11 @@ eye_pos, head = classifier.head_detect(im_processed)
 
 print(eye_pos)
 plt.imshow(head)
+
+# x = np.array([[1,0]])
+# x = np.append(x, [[1,0]], axis=0)
+# print(x)
+
 
 # if __name__ == '__main__':
 #     main()
