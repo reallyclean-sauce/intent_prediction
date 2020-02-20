@@ -95,6 +95,7 @@ class drawer:
     @staticmethod
     def getVid(frames, name, fps):
         size = (frames[0].shape[1], frames[0].shape[0])
+        print(size)
         out = cv2.VideoWriter(f'./vidss/{name}.avi',cv2.VideoWriter_fourcc('M','J','P','G'), fps, size)
         for i in range(len(frames)):
             # Append the visualized image to the output video
