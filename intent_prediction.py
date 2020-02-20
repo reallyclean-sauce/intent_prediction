@@ -26,6 +26,7 @@ import operator
 import itertools
 from scipy.io import  loadmat
 import logging
+import ffmpeg
 
 # import math libraries
 import numpy as np
@@ -52,8 +53,9 @@ import torch.nn.functional as F
 from torch.nn import DataParallel
 
 # Import gazeFollow Libraries
-import visualizingUtils.drawer as drawer
+from visualizingUtils import drawer, getRotateCode, rotateIMG
 import gazeFollow_functions as gFF
+from intentUtils import getRotateCode, rotateIMG
 
 
 
@@ -76,104 +78,195 @@ class intentClassifier:
         cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.7  # set threshold for this model
         cfg.MODEL.WEIGHTS = "detectron2://COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x/137849621/model_final_a6e10b.pkl"
         self.humanKP_cfg = cfg
-        self.human_keypoint = DefaultPredictor(cfg) 
-        
+        self.human_keypoint = DefaultPredictor(cfg)
+
         self.debug = 0 # default to not debug
-        
+
         self.head_pos_arr = np.array([[]])
-        
-    
+
+
+    # Filter
+    # Binary Output
+    # Check if subject is moving
+    def posFilter(self, head_pos):
+        # Insert filter code here
+        mean = np.mean(self.head_pos_arr, axis=2)
+        std_dev = np.std(self.head_pos_arr, axis=2)
+        print(mean, std_dev, head_pos)
+
+        if head_pos < (mean + std_dev):
+            decision = True
+        else:
+            decision = False
+
+        return decision
+
+    # Filter
+    # Binary Output
+    # Check if gaze is towards the area/objets
+    def gazeFilter(self, img, gaze_direction):
+        # Insert filter code here
+        return decision
+
     # Input: Video
     # Output: Task Category
     def predictTask(self, vid):
         # Get the FPS
         fps = vid.get(cv2.CAP_PROP_FPS)
-        print ("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(fps))
-        
-        # Validate if working
-        success,img = vid.read(cv2.CAP_PROP_FPS)
-        if not success:
-            raise SystemExit("Video does not exist!")
-        
+        print ("Frames per second using video.get(cv2.CAP_PROP_FPS) : {0}".format(int(fps)))
+
+        total_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+
         posFilter_ans = []
         count = 0
-        while success:
+        frame_count = 0
+        success = True
+        while count != total_frames:
+
+            # Validate if working
+            success,img = vid.read()
+            if count == 0 and not success:
+                raise SystemError("Video does not exist!")
+
+            # Increment to monitor vid reading
+            count += 1
+
+            # print(f"Count = {count} {success} {img[0][1][1]}")
+            if int(count) == 10000:
+                completion = 100*float(count/total_frames)
+                print(f"Percent Completion: {completion}%")
+                break
+
+            # Get predict gazed object of the image
             if not count % (int(fps/10)): # Get 10 frames per total fps
+
                 # progress bar
-                print("Percent Completion: ", fps/10)
-                
-                continue
-                
+                completion = 100*float(count/total_frames)
+                print(f"Percent Completion: {completion}%")
+
+
                 # Apply Head Detection
                 head_pos = self.headDetect(img)
-                
-                # Apply filter
-                decision = posFilter(head_pos)
-                posFilter_ans.append(decision)
-                
+
+                if head_pos[0] < 0:
+                    continue
+
+
                 # Append head pos to head pos array
                 self.head_pos_arr = np.append(self.head_pos_arr,[head_pos],axis=1)
-                
-                # Visualize prediction                
+
+                if frame_count > 5:
+                    # Apply filter
+                    decision = self.posFilter(head_pos)
+                    # Append answer
+                    posFilter_ans.append(decision)
+
+                frame_count += 1
+
+
+
+                # Visualize prediction
                 # if decision:
                 #     self.drawer.drawTask(img, 'undet')
                 # else:
                 #     self.drawer.drawTask(img, 'spont')
-                
-        
-            
-            success,img = vid.read(cv2.CAP_PROP_FPS)
+
+            # Increment to monitor vid reading
             count += 1
-        
+
+
+
+
+
         print(posFilter_ans)
         print(head_pos_arr)
         # Get the visualized video
         # self.drawer.getVid()
-        
+
         task_category = 'spont'
         return task_category
+
+    def drawHeadDetect(self, vidpath, destvid, new_fps):
+        # Initialize loop
+        vidOut = [] # For writing the video
+        stateIndicator = drawer() # Initialize the drawing tool
+        fps = vid.get(cv2.CAP_PROP_FPS) # Get the FPS
+        rotateCode = getRotateCode(vidpath) # For correcting rotation
+        total_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT)) # For total loops
+        v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(self.humanKP_cfg.DATASETS.TRAIN[0]), scale=1.2) # Model Prediction
         
+        # Loop for getting the head detection for all frames
+        start_time = time.time()
+        for i in range(50):
+            
+            # Desired Output FPS
+            if not (i % int(fps/new_fps)): 
+                
+                # Monitor progress of loop
+                diff_time = time.time() - start_time
+                completion = 100*float(count/total_frames)
+                print(f"Percent Completion: {completion}%  for {diff_time}s passed.")
+    
+                # Apply head detection
+                outputs = self.human_keypoint(img)
+                
+                # Get visualization
+                v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+                imOut = v.get_image()[:, :, ::-1]
+    
+                # Append the output image
+                vidOut.append(imOut)
+    
+                # Get new image and Increment counter
+                success, img = vid.read()
+
+        # Save the output
+        drawer.getVid(vidOut, destvid)
+
+
     # Orig size img -> 224x224 image
     def preProcess(self, img):
         dim = (224, 224)
-        # resize image
-        resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA) 
-        
-        print("HALLOO")
-        cv2.imwrite('./imgs/processed.png', resized)
-        
+        resized = cv2.resize(img, dim, interpolation = cv2.INTER_AREA) # resize image
+        cv2.imwrite('./imgs/processed.png', resized) # New img
+
         return resized
-        
 
     # Output: head_pos, head_img
     def headDetect(self, img):
         # Preprocess the image first
-        
-        
+        resized = self.preProcess(img)
+
         # Use detectron2 to extract human keypoints
-        outputs = self.human_keypoint(img)
-        
+        outputs = self.human_keypoint(resized)
+
+        if len(outputs["instances"].pred_classes) == 0:
+            head_pos = (-1,-1)
+            print("No head")
+            return head_pos
+
         # Set for debugging: Shows the output image from model
         if self.debug:
-            v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(self.humanKP_cfg.DATASETS.TRAIN[0]), scale=1.2)
+            v = Visualizer(resized[:, :, ::-1], MetadataCatalog.get(self.humanKP_cfg.DATASETS.TRAIN[0]), scale=1.2)
             v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
             plt.imshow(v.get_image()[:, :, ::-1], CMAP='gray')
 
+
         # Extract the position from the human keypoints
         b = outputs["instances"][0:1].pred_keypoints
+
         x = b.int()
         head_pos = (x[0][0][0:2].to("cpu").numpy())/(224) # Position of nose
 
         # Eye positions
         left_eye = x[0][1][0:2].to("cpu").numpy()
         right_eye = x[0][2][0:2].to("cpu").numpy()
-        
+
         # For ablation study: Check which has better accuracy
         eye = (left_eye+right_eye)/(224*2)
         # eye = head_pos
-        
+
         # print(head_pos, eye)
-        
 
         return head_pos
 
@@ -195,20 +288,20 @@ class intentClassifier:
             x_1 = 1
         if y_1 > 1:
             y_1 = 1
-    
+
         h, w = img.shape[:2]
         head_img = img[int(y_0 * h):int(y_1 * h), int(x_0 * w):int(x_1 * w), :]
-        
-        # Insert code here       
-        
+
+        # Insert code here
+
 
         return gaze_pathway
+
 
     # Output: Gaze Area
     # Size: 224x224 image
     def predictHeatMap(self, img, gaze_pathway):
         # Insert code here
-
         return gaze_area
 
     # Output: gazed_object_label, gazed_object_image
@@ -221,51 +314,58 @@ class intentClassifier:
 
         return gazed_object_label, gazed_object_image
 
-    # Filter
-    # Binary Output
-    # Check if subject is moving
-    def posFilter(self, head_pos):
-        # Insert filter code here
-        mean = np.mean(self.head_pos_arr)
-        std_dev = np.std(self.head_pos_arr)
-        
-        if head_pos < (mean + std_dev):
-            decision = True
-        else:
-            decision = False
+# https://stackoverflow.com/questions/53097092/frame-from-video-is-upside-down-after-extracting
+def checkRotation(path_video_file):
+    # this returns meta-data of the video file in form of a dictionary
+    meta_dict = ffmpeg.probe(path_video_file)
 
-        return decision
+    # from the dictionary, meta_dict['streams'][0]['tags']['rotate'] is the key
+    # we are looking for
+    rotateCode = None
+    if int(meta_dict['streams'][0]['tags']['rotate']) == 90:
+        rotateCode = cv2.ROTATE_90_CLOCKWISE
+    elif int(meta_dict['streams'][0]['tags']['rotate']) == 180:
+        rotateCode = cv2.ROTATE_180
+    elif int(meta_dict['streams'][0]['tags']['rotate']) == 270:
+        rotateCode = cv2.ROTATE_90_COUNTERCLOCKWISE
 
-    # Filter
-    # Binary Output
-    # Check if gaze is towards the area/objets
-    def gazeFilter(self, img, gaze_direction):
-        # Insert filter code here
-        return decision
-    
+    return rotateCode
+
+
 # def main():
-    # classifier = intentClassifier()
-    # classifier.debug = 1
-    
-    # im = cv2.imread('./imgs/pauline_bag.png')
-    # plt.imshow(im, CMAP='gray')
-    # # print((im.shape))
-    # # pause;
-    
-    # # One loop:
-    # im_processed = classifier.preProcess(im)
-    
-    # eye_pos = classifier.headDetect(im_processed)
+#     classifier = intentClassifier()
+#     classifier.debug = 1
+
+#     im = cv2.imread('./imgs/pauline_bag.png')
+#     plt.imshow(im, CMAP='gray')
+#     # print((im.shape))
+#     # pause;
+
+#     # One loop:
+#     im_processed = classifier.preProcess(im)
+
+#     eye_pos = classifier.headDetect(im_processed)
 
 
 # if __name__ == '__main__':
-#     main()
-        
-vidpath = './vidss/001_Task5_2.MOV'
-vid = cv2.VideoCapture(vidpath)
-classifier = intentClassifier()
+    # main().
 
-classifier.predictTask(vid)
+vidpath = './vidss/001_Task5_2.MOV'
+
+# # Debugging
+# vid = cv2.VideoCapture(vidpath)
+# length = int(vid.get(cv2.CAP_PROP_FRAME_COUNT))
+# success,img = vid.read()
+# rotateCode = checkRotation(vidpath)
+# cv2.rotate(img,rotateCode, new_img)
+# plt.imshow(img, cmap='gray')
+# time.sleep(4)
+# plt.imshow(new_img, cmap='gray')
+# classifier = intentClassifier()
+
+
+# Output video is saved in "vidss" folder
+classifier.drawHeadDetect(vidpath, "kpOut", 3)
 
 
 
