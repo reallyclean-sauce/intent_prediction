@@ -10,7 +10,6 @@ import subprocess
 import cv2
 import time
 import matplotlib.pyplot as plt
-from visualizingUtils import drawer
 
 
 # Get the total rotation of an image
@@ -96,7 +95,7 @@ class drawer:
     @staticmethod
     def getVid(frames, name, fps):
         size = (frames[0].shape[1], frames[0].shape[0])
-        out = cv2.VideoWriter(f'./vidss/{name}.avi',cv2.VideoWriter_fourcc('M','J','P','G'), 3, size)
+        out = cv2.VideoWriter(f'./vidss/{name}.avi',cv2.VideoWriter_fourcc('M','J','P','G'), fps, size)
         for i in range(len(frames)):
             # Append the visualized image to the output video
             out.write(frames[i])

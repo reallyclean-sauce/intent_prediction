@@ -27,6 +27,7 @@ import itertools
 from scipy.io import  loadmat
 import logging
 import ffmpeg
+import subprocess
 
 # import math libraries
 import numpy as np
@@ -53,11 +54,30 @@ import torch.nn.functional as F
 from torch.nn import DataParallel
 
 # Import gazeFollow Libraries
-from visualizingUtils import drawer, getRotateCode, rotateIMG
+from visualizingUtils import drawer
 import gazeFollow_functions as gFF
-from intentUtils import getRotateCode, rotateIMG
+
+# Get the total rotation of an image
+# based on metadata
+def getRotateCode(vidpath):
+    string = f"script -c 'ffmpeg -i {vidpath}'"
+    command = string.split()
+    ffmpegOut = subprocess.check_output(['script', '-c', f'ffmpeg -i {vidpath}'])
+    rotateCode = int(str(ffmpegOut).split('rotate')[1].split()[1].strip('\\r\\n'))
+
+    return rotateCode
 
 
+# Rotates the image
+def rotateIMG(img, rotateCode):
+    if rotateCode == 90:
+        rotated_img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+    elif rotateCode == 180:
+        rotated_img = cv2.rotate(img, cv2.ROTATE_180)
+    else:
+        rotated_img = cv2.rotate(img, cv2.ROTATE_90_COUNTERCLOCKWISE)
+
+    return rotated_img
 
 class intentClassifier:
 
@@ -187,41 +207,43 @@ class intentClassifier:
         return task_category
 
     def drawHeadDetect(self, vidpath, destvid, new_fps):
+        
         # Initialize loop
         vidOut = [] # For writing the video
         stateIndicator = drawer() # Initialize the drawing tool
+        vid = cv2.VideoCapture(vidpath) # Get the video
         fps = vid.get(cv2.CAP_PROP_FPS) # Get the FPS
         rotateCode = getRotateCode(vidpath) # For correcting rotation
+        success, img = vid.read() # Sample frame
         total_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT)) # For total loops
         v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(self.humanKP_cfg.DATASETS.TRAIN[0]), scale=1.2) # Model Prediction
         
         # Loop for getting the head detection for all frames
         start_time = time.time()
-        for i in range(50):
+        for i in range(total_frames-1):
+            # Get new image and Increment counter
+            success, img = vid.read()
             
             # Desired Output FPS
             if not (i % int(fps/new_fps)): 
                 
                 # Monitor progress of loop
                 diff_time = time.time() - start_time
-                completion = 100*float(count/total_frames)
+                completion = 100*float(i/total_frames)
                 print(f"Percent Completion: {completion}%  for {diff_time}s passed.")
     
                 # Apply head detection
                 outputs = self.human_keypoint(img)
                 
                 # Get visualization
-                v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-                imOut = v.get_image()[:, :, ::-1]
+                draw_v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
+                imOut = draw_v.get_image()[:, :, ::-1]
     
                 # Append the output image
                 vidOut.append(imOut)
     
-                # Get new image and Increment counter
-                success, img = vid.read()
-
         # Save the output
-        drawer.getVid(vidOut, destvid)
+        drawer.getVid(vidOut, destvid, new_fps)
 
 
     # Orig size img -> 224x224 image
@@ -314,22 +336,6 @@ class intentClassifier:
 
         return gazed_object_label, gazed_object_image
 
-# https://stackoverflow.com/questions/53097092/frame-from-video-is-upside-down-after-extracting
-def checkRotation(path_video_file):
-    # this returns meta-data of the video file in form of a dictionary
-    meta_dict = ffmpeg.probe(path_video_file)
-
-    # from the dictionary, meta_dict['streams'][0]['tags']['rotate'] is the key
-    # we are looking for
-    rotateCode = None
-    if int(meta_dict['streams'][0]['tags']['rotate']) == 90:
-        rotateCode = cv2.ROTATE_90_CLOCKWISE
-    elif int(meta_dict['streams'][0]['tags']['rotate']) == 180:
-        rotateCode = cv2.ROTATE_180
-    elif int(meta_dict['streams'][0]['tags']['rotate']) == 270:
-        rotateCode = cv2.ROTATE_90_COUNTERCLOCKWISE
-
-    return rotateCode
 
 
 # def main():
@@ -361,8 +367,9 @@ vidpath = './vidss/001_Task5_2.MOV'
 # plt.imshow(img, cmap='gray')
 # time.sleep(4)
 # plt.imshow(new_img, cmap='gray')
-# classifier = intentClassifier()
 
+# Initialize model
+classifier = intentClassifier()
 
 # Output video is saved in "vidss" folder
 classifier.drawHeadDetect(vidpath, "kpOut", 3)
