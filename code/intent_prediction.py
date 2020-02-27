@@ -141,7 +141,7 @@ class IntentPredictionNetwork():
 
                     # Visualize Head Position Filter
                     if int(i / int(fps/new_fps)) > 5:
-                        if :
+                        if enable:
                             current_task = 'undet'
                             new_img = stateIndicator.drawTask(imOut, 'undet')
                         else:
