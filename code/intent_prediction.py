@@ -17,7 +17,6 @@ import sys
 import time
 import os
 import numpy as np
-import json
 import cv2
 from PIL import Image, ImageOps
 import random
@@ -26,7 +25,6 @@ import operator
 import itertools
 from scipy.io import  loadmat
 import logging
-import ffmpeg
 import subprocess
 
 # import math libraries
@@ -184,7 +182,7 @@ class IntentPredictionNetwork():
         right_eye = x[0][2][0:2].to("cpu").numpy()
 
         # For ablation study: Check which has better accuracy
-        eye = (left_eye+right_eye)/(224*2)
+        eye_pos = (left_eye+right_eye)/(224*2)
 
         # Shows the output image from model
         if self.debug:
@@ -194,7 +192,7 @@ class IntentPredictionNetwork():
             plt.imshow(v.get_image()[:, :, ::-1], CMAP='gray')
             plt.show(block=True)
 
-        return head_pos
+        return eye_pos
 
     # Output: Gaze Pathway Probability Map
     # Size: 224x224

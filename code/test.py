@@ -26,66 +26,68 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
 # Import my libraries
-from dataset import HeadPositionDataset
+from head_dataset import HeadPositionDataset, showHeadPosition
+from object_dataset import ObjectPositionDataset
+from intent_prediction import IntentPredictionNetwork
 
+# Returns class and
+# def get_head_pred(network, dataset):
 
-def evaluateHeadDetection(network, predict, data):
-    """
-    Evaluate the model using MSE
-    Why MSE? (Research
-    predict is a numpy array with (:,2) shape
-    data is a numpy array with (:,2) shape
-    """
-    return mean_squared_error(predict,data)
-
-
-
-
-def showHeadPosition(image, head_pos):
-    """
-    Show the position of the head
-    in the image
-    """
-    plt.imshow(image)
-    plt.scatter(head_pos[:,0], head_pos[:,1], s=10, marker='.', c='r')
-    plt.pause(0.001) # For loading the image
-
-def extractGroundTruth(dataset):
+def evaluateModel(network, dataset):
     # fig = plt.figure()
 
     # Extract the ground truth
-    data = np.array([[]])
+    y_true = np.array([[]])
+    y_pred = np.array([[]])
     start_time = time.time()
     for i in range(len(dataset)):
         sample = dataset[i]
 
-        # print(i, sample['image'].shape, sample['head_pos'])
+        # Preprocess the data
+        x,y,_ = sample['image'].shape
 
-        # # Visualize the video
-        # ax = plt.subplot(1,2,i+1)
-        # plt.tight_layout()
-        # ax.set_title(f'Sample #{i}')
-        # ax.axis('off')
-        # show_head_position(**sample)
+        # Append the ground truth
+        truth = sample['head_pos']
+        y_true = np.append(y_true, [float(truth[0][0]/x), float(truth[0][1]/y)])
+        # y_true = np.append(y_true, [float(truth[0][0]), float(truth[0][1])])
 
-        # if i == 1:
-        #     plt.show()
-        #     break
+        # Get the prediction then append
+        pred = network.headDetect(sample['image'])
+        y_pred = np.append(y_pred, [float(pred[0]/x), float(pred[1]/y)])
+        # y_pred = np.append(y_pred, [float(pred[0]), float(pred[1])])
 
-        data = np.append(data, [sample['head_pos']])
-        runtime = time.time() - start_time
-        print(runtime)
+        if not i % 10:
+          runtime = time.time() - start_time
+          percent_completion = float(i / len(dataset)) * 100
+          print(f'Total time taken: {runtime}s  Percent Completion: {percent_completion}%')
 
+        # if i > 5:
+        #   break
+
+    runtime = time.time() - start_time
+    percent_completion = float(i / len(dataset)) * 100
+    print(f'Total time taken: {runtime}s  Percent Completion: {percent_completion}%')
+
+
+    # Comparison model
+    y_true = y_true.astype(float).reshape(-1,2)
+    y_pred = y_pred.astype(float).reshape(-1,2)
+
+    loss = mean_absolute_error(y_true, y_pred)
+
+    print(f'Loss is {loss}.')
+
+    return loss, y_true, y_pred
 
 def main():
 
     head_pos_dataset = HeadPositionDataset( \
         '../dsp_intent_analyzer_dataset/head_data.csv',  \
         '../dsp_intent_analyzer_dataset/head_data')
+    architecture = IntentPredictionNetwork()
+    accuracy = evaluateModel(architecture, head_pos_dataset)
 
-    y_true = extractGroundTruth(head_pos_dataset)
-
-    print(y_true)
+    print(accuracy)
 
 
 
@@ -93,11 +95,6 @@ def main():
 if __name__ == '__main__':
     main()
     print("Testing!!")
-    # Testing
-    # y_true = np.asarray([[0.5, 1],[-1, 1],[7, -6]])
-    # y_true = y_true.astype(float).reshape(-1,2)
-    # y_pred = np.asarray([[0, 2],[-1, 2],[8, -5]])
-    # y_pred = y_pred.astype(float).reshape(-1,2)
-    # # print(y_pred)
-    # print(mean_squared_error(y_true, y_pred))
+
+
 
