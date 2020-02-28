@@ -12,12 +12,15 @@ import detectron2
 from detectron2.utils.logger import setup_logger
 setup_logger()
 
+# For ssh plotting
+# from matplotlib import use
+# use('GTK3Agg')  # Or any other X11 back-end
+
 # import important libraries
 import sys
 import time
 import os
 import numpy as np
-import json
 import cv2
 from PIL import Image, ImageOps
 import random
@@ -26,13 +29,13 @@ import operator
 import itertools
 from scipy.io import  loadmat
 import logging
-import ffmpeg
 import subprocess
 
 # import math libraries
 import numpy as np
 import cv2
 import random
+from skimage import io, transform
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
@@ -41,6 +44,7 @@ from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 # import torch libraries
 import torch
@@ -141,7 +145,7 @@ class IntentPredictionNetwork():
 
                     # Visualize Head Position Filter
                     if int(i / int(fps/new_fps)) > 5:
-                        if :
+                        if enable:
                             current_task = 'undet'
                             new_img = stateIndicator.drawTask(imOut, 'undet')
                         else:
@@ -184,7 +188,7 @@ class IntentPredictionNetwork():
         right_eye = x[0][2][0:2].to("cpu").numpy()
 
         # For ablation study: Check which has better accuracy
-        eye = (left_eye+right_eye)/(224*2)
+        eye_pos = (left_eye+right_eye)/(224*2)
 
         # Shows the output image from model
         if self.debug:
@@ -194,7 +198,7 @@ class IntentPredictionNetwork():
             plt.imshow(v.get_image()[:, :, ::-1], CMAP='gray')
             plt.show(block=True)
 
-        return head_pos
+        return eye_pos
 
     # Output: Gaze Pathway Probability Map
     # Size: 224x224
@@ -327,13 +331,57 @@ class IntentPredictionNetwork():
         return decision
 
 def main():
-    vidpath = './raw_vids/001_Task5_2.MOV'
+    # vidpath = './raw_vids/001_Task5_2.MOV'
 
     # Initialize model
-    classifier = intentClassifier()
+    network = IntentPredictionNetwork()
 
-    # Output video is saved in "vidss" folder
-    classifier.predictTask(vidpath, '../dsp_intent_analyzer/recogOut', 3)
+    # # Output video is saved in "vidss" folder
+    # classifier.predictTask(vidpath, '../dsp_intent_analyzer/recogOut', 3)
+
+    # dummy
+    # path = os.getcwd()
+    # print(path)
+
+    # Object Recognition
+    imgpath = '../dsp_intent_analyzer_dataset/head_data/019_gaze_utensils.png'
+    image = io.imread(imgpath)
+
+    output = network.object_recog(image)
+    classes = output['instances'].pred_classes
+    offsets = output['instances'].pred_boxes
+
+    pred_list = []
+    name_list = []
+
+    for y_cls,y_offset in zip(classes,offsets):
+        xmin,ymin,xmax,ymax = y_offset
+        print(ycls.to('cpu'),offset.to('cpu'))
+
+        # Visualize
+        # fig, ax = plt.subplots(figsize=(10, 6))
+        # plt.imshow(image, cmap='gray')
+        # plt.title(str(ycls.to('cpu')))
+
+        # rect = mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+        #                           fill=False, edgecolor='red', linewidth=2)
+        # ax.add_patch(rect)
+        # plt.show(block=True)
+        # plt.pause(0.1)
+
+        # Extract Prediction
+        y_offset = y_offset.to('cpu')
+        y_cls = y_cls.to('cpu')
+
+        # pred = {
+        #     'uid': imgpath_uid
+        # }
+
+        # pred_list.append()
+
+
+
+
 
 if __name__ == '__main__':
     main()
