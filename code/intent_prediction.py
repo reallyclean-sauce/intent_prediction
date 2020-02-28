@@ -264,17 +264,50 @@ class IntentPredictionNetwork():
             plt.imshow(v.get_image()[:, :, ::-1], CMAP='gray')
             plt.show(block=True)
 
-        # Insert Code
-        # Incomplete for the mean time
-        for objects in outputs:
-            if self.objects['instances'].pred_classes == 0:
+        classes = output['instances'].pred_classes
+        offsets = output['instances'].pred_boxes
+
+        pred_list = []
+        start = False
+        for y_cls,y_offset in zip(classes,offsets):
+            # Skip human detection
+            if y_cls == 0:
                 continue
 
-            objectOfInterest = {}
-            objectOfInterest['label'] = 'dummy'
-            originpt = (0,0) # (xmin,ymin)
-            finalpt = (0,0) # (xmax,ymax)
-            objectOfInterest['boundbox'] = [originpt, finalpt]
+            if self.debug:
+                if not start:
+                    # Visualize
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    plt.imshow(image, cmap='gray')
+                    plt.title(str(y_cls.to('cpu')))
+
+                xmin,ymin,xmax,ymax = y_offset
+
+                # Append the drawing of object detection
+                rect = mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+                                  fill=False, edgecolor='red', linewidth=2)
+                ax.add_patch(rect)
+                plt.show(block=False)
+                plt.pause(0.1)
+
+
+            # Extract Prediction
+            y_offset = y_offset.to('cpu')
+            y_cls = y_cls.to('cpu')
+
+            pred = {
+                'class': y_cls,
+                'offset': y_offset
+            }
+
+            pred_list.append()
+
+
+            # objectOfInterest = {}
+            # objectOfInterest['label'] = 'dummy'
+            # originpt = (0,0) # (xmin,ymin)
+            # finalpt = (0,0) # (xmax,ymax)
+            # objectOfInterest['boundbox'] = [originpt, finalpt]
 
         self.OOIs.append(objectOfInterest)
 
@@ -342,43 +375,6 @@ def main():
     # dummy
     # path = os.getcwd()
     # print(path)
-
-    # Object Recognition
-    imgpath = '../dsp_intent_analyzer_dataset/head_data/019_gaze_utensils.png'
-    image = io.imread(imgpath)
-
-    output = network.object_recog(image)
-    classes = output['instances'].pred_classes
-    offsets = output['instances'].pred_boxes
-
-    pred_list = []
-    name_list = []
-
-    for y_cls,y_offset in zip(classes,offsets):
-        xmin,ymin,xmax,ymax = y_offset
-        print(ycls.to('cpu'),offset.to('cpu'))
-
-        # Visualize
-        # fig, ax = plt.subplots(figsize=(10, 6))
-        # plt.imshow(image, cmap='gray')
-        # plt.title(str(ycls.to('cpu')))
-
-        # rect = mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
-        #                           fill=False, edgecolor='red', linewidth=2)
-        # ax.add_patch(rect)
-        # plt.show(block=True)
-        # plt.pause(0.1)
-
-        # Extract Prediction
-        y_offset = y_offset.to('cpu')
-        y_cls = y_cls.to('cpu')
-
-        # pred = {
-        #     'uid': imgpath_uid
-        # }
-
-        # pred_list.append()
-
 
 
 
