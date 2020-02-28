@@ -12,6 +12,7 @@ from skimage import io, transform
 import numpy as np
 import json
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 

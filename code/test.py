@@ -2,10 +2,11 @@ from __future__ import print_function, division
 """
 Calculate the accuracy of each part of the model
 Head Detection Model
-    Mean Square Error
+    Mean Absolute Error
 Object Recognition Model
-    Categorical Cross Entropy
-    MAE
+    IoU for determining if TP TN FP FN
+    draw the precision/recall curve
+    gets the mean average precision
 Gaze Pathway Prediction Model
     ???
 Heatmap Pathway Prediction Model
@@ -30,10 +31,53 @@ from head_dataset import HeadPositionDataset, showHeadPosition
 from object_dataset import ObjectPositionDataset
 from intent_prediction import IntentPredictionNetwork
 
-# Returns class and
-# def get_head_pred(network, dataset):
 
-def evaluateModel(network, dataset):
+def get_object_gt(dataset):
+    """
+    Args:
+        dataset: gets the ground truth for the object
+            elements: 'uid', 'y_cls', 'y_offset'
+    """
+    gt_list = []
+    for i in range(len(dataset)):
+        sample = dataset[i]
+
+        uid = sample['uid']
+        image = sample['image']
+        y_cls = sample['class']
+        y_offset = sample['offset']
+
+        gt_sample = {
+            'uid': uid,
+            'class': y_cls,
+            'offset': y_offset
+        }
+
+        gt_list.append(gt_sample)
+
+    return gt_list
+
+def get_object_pred(network, dataset):
+    """
+    Args:
+        dataset: gets the ground truth for the object
+            elements: 'uid', 'y_cls', 'y_offset'
+    """
+    pred_list = []
+    for i in range(len(dataset)):
+        sample = dataset[i]
+
+        uid = sample['uid']
+        image = sample['image']
+        y_cls = sample['class']
+        y_offset = sample['offset']
+
+        output = network.objectRecog(image)
+
+        pred_list.append(gt_sample)
+
+
+def evaluateHeadModel(network, dataset):
     # fig = plt.figure()
 
     # Extract the ground truth
@@ -77,15 +121,35 @@ def evaluateModel(network, dataset):
 
     print(f'Loss is {loss}.')
 
-    return loss, y_true, y_pred
+    return loss
+
 
 def main():
 
-    head_pos_dataset = HeadPositionDataset( \
-        '../dsp_intent_analyzer_dataset/head_data.csv',  \
-        '../dsp_intent_analyzer_dataset/head_data')
+    csv_file = '../dsp_intent_analyzer_dataset/object_data.csv'
+    root_dir = '../dsp_intent_analyzer_dataset/object_data'
+
+    object_pos_dataset = ObjectPositionDataset(csv_file,root_dir)
     architecture = IntentPredictionNetwork()
-    accuracy = evaluateModel(architecture, head_pos_dataset)
+
+    for i in range(len(object_pos_dataset)):
+        sample = object_pos_dataset[i]
+
+        uid = sample['uid']
+        image = sample['image']
+        y_cls = sample['class']
+        y_offset = sample['offset']
+
+        # bounding box coordinates ground truth
+        xmin = y_offset[0][0]
+        ymin = y_offset[0][1]
+        xmax = y_offset[1][0]
+        ymax = y_offset[1][1]
+
+        # Predict the class and offset
+
+
+
 
     print(accuracy)
 
@@ -94,7 +158,6 @@ def main():
 
 if __name__ == '__main__':
     main()
-    print("Testing!!")
 
 
 

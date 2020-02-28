@@ -31,6 +31,7 @@ import subprocess
 import numpy as np
 import cv2
 import random
+from skimage import io, transforms
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
@@ -325,13 +326,32 @@ class IntentPredictionNetwork():
         return decision
 
 def main():
-    vidpath = './raw_vids/001_Task5_2.MOV'
+    # vidpath = './raw_vids/001_Task5_2.MOV'
 
     # Initialize model
     classifier = intentClassifier()
 
-    # Output video is saved in "vidss" folder
-    classifier.predictTask(vidpath, '../dsp_intent_analyzer/recogOut', 3)
+    # # Output video is saved in "vidss" folder
+    # classifier.predictTask(vidpath, '../dsp_intent_analyzer/recogOut', 3)
+
+    # Object Recognition
+    imgpath = '../dsp_intent_analyzer/head_data/004_gaze_undetermined.png'
+    img = io.imread(imgpath)
+
+    output = object_recog(img)
+    y_offset = output['instances'].pred_boxes
+
+    for xmin,ymin,xmax,ymax in y_offset:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        plt.imshow(image, cmap='gray')
+        plt.title(str(y_cls))
+
+        rect = mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+                                  fill=False, edgecolor='red', linewidth=2)
+        ax.add_patch(rect)
+        plt.show()
+
+
 
 if __name__ == '__main__':
     main()
