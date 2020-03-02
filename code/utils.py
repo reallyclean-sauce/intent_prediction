@@ -9,6 +9,9 @@ Created on Wed Feb 19 10:02:04 2020
 import subprocess
 import cv2
 import time
+import os
+from skimage import io
+import numpy as np
 import matplotlib.pyplot as plt
 
 
@@ -42,8 +45,8 @@ class Drawer():
     """
 
     # Get a subject's head_pos for tracking
-    def __init__(self, head_pos, fps):
-        self.head_pos = head_pos
+    def __init__(self, fps):
+        # self.head_pos = head_pos
         self.fps_out = fps
         self.frames = []
 
@@ -65,6 +68,8 @@ class Drawer():
         else:
             text = task
 
+
+
         # Initialize variables needed for the text
         height, width, layer = img.shape
         font_face = cv2.FONT_HERSHEY_SIMPLEX
@@ -81,6 +86,14 @@ class Drawer():
         # Draw the Bounding box
         bgColor = (0,255,0)
         borderColor = (0,128,0)
+
+        img = np.copy(img) # Fix the problem
+        # print(type(img))
+        # io.imshow(img)
+        # print(bgPoint)
+        # print(borderPoint)
+        # plt.show(block=True)
+
         cv2.rectangle(img, bgPoint[0], bgPoint[1], bgColor, -1)
         cv2.rectangle(img, borderPoint[0], borderPoint[1], borderColor, 10)
 
@@ -106,12 +119,17 @@ class Drawer():
 
 
     # Combine image frames into video
-    @staticmethod
-    def getRecording(self, filepath, fps=3):
+    def getRecording(self, filename, fps=3):
         # get Size
         size = (self.frames[0].shape[1], self.frames[0].shape[0])
 
+        # Destination folder
+        dest = '../dsp_intent_analyzer_dataset/draw_vids'
+        if not os.path.exists(dest):
+            os.mkdir(dest)
+
         # Create Video based from the file
+        filepath = os.path.join(dest, filename)
         out = cv2.VideoWriter(f'{filepath}.avi',cv2.VideoWriter_fourcc('M','J','P','G'), fps, size)
         for i in range(len(self.frames)):
             # Append the visualized image to the output video

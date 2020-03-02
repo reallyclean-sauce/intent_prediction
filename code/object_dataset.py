@@ -16,6 +16,29 @@ import matplotlib.patches as mpatches
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
+# COCO_Dataset to Detectron2 class label
+numcoco2label = {
+    25: 'backpack',
+    26: 'umbrella',
+    39: 'tennis racket',
+    40: 'bottle',
+    42: 'cup',
+    43: 'fork',
+    44: 'knife',
+    45: 'spoon',
+    46: 'bowl',
+    47: 'banana',
+    48: 'apple',
+    49: 'sandwich',
+    50: 'orange',
+    64: 'laptop',
+    65: 'mouse',
+    67: 'keyboard',
+    68: 'cell phone',
+    74: 'book',
+    75: 'clock',
+    80: 'toothbrush'
+}
 
 # Inherit features of torch Dataset
 class ObjectPositionDataset(Dataset):
@@ -24,7 +47,7 @@ class ObjectPositionDataset(Dataset):
     To be specific
     """
 
-    def __init__(self, csv_file, root_dir, transform=None):
+    def __init__(self, json_file, root_dir, transform=None):
         """
         Args:
             json_file (string): the file path of the csv dataset
@@ -32,7 +55,9 @@ class ObjectPositionDataset(Dataset):
             transform (callable, optional): Optional transform
                 This can be resizing the image into 224x224
         """
-        self.object_data = pd.read_csv(csv_file)
+        with open(json_file) as file:
+            file = json.load(file)
+        self.object_data = pd.DataFrame().from_dict(file['_via_img_metadata']).T
         self.root_dir = root_dir
         self.transform = transform
 
@@ -45,34 +70,20 @@ class ObjectPositionDataset(Dataset):
             idx = idx.tolist()
 
         # Index Variables
-        file_idx = 0 # Contains the filename
-        cls_idx = 6 # Contains the class
-        offset_idx = 5 # Contains the offset
+        file_idx = 0
+        region_idx = 2
 
-        # Extract Image Data
-        img_name = self.object_data.iloc[idx,file_idx]
+        # Get the required data
+        img_name = self.object_data.iloc[idx, file_idx]
         img_path = os.path.join(self.root_dir, img_name)
         image = io.imread(img_path)
 
-        # Extracting the class
-        region_cls = json.loads(self.object_data.iloc[idx,cls_idx])
-        y_cls = int(region_cls['backpack'])
-
-        # Extracting the object
-        region_offset = json.loads(self.object_data.iloc[idx,offset_idx])
-        xmin = int(region_offset['x'])
-        ymin = int(region_offset['y'])
-        xmax = xmin + int(region_offset['width'])
-        ymax = ymin + int(region_offset['height'])
-        origin = (xmin,ymin)
-        endpt  = (xmax,ymax)
-        y_offset = [origin,endpt]
+        regions = self.object_data.iloc[idx, region_idx]
 
         sample = {
-            'uid': f'{img_name}_{y_cls}',
+            'name': img_name,
             'image': image,
-            'class': y_cls,
-            'offset': y_offset
+            'regions': regions
         }
 
         if self.transform:
@@ -81,42 +92,72 @@ class ObjectPositionDataset(Dataset):
         return sample
 
 
+def looping_json():
+    json_file = '../dsp_intent_analyzer_dataset/object_data.json'
+    with open(json_file) as file:
+        file = json.load(file)
+        # print(file)
 
+    print("Getting the filename: ", file['_via_img_metadata']['001_gaze_undetermined.png1437982']['filename'])
+    print("Getting the offset: ", file['_via_img_metadata']['001_gaze_undetermined.png1437982']['regions'][0]['shape_attributes']['x'])
+    print("Getting the class", file['_via_img_metadata']['001_gaze_undetermined.png1437982']['regions'][0]['region_attributes']['backpack'])
 
-if __name__ == '__main__':
-    csv_path = '../dsp_intent_analyzer_dataset/object_data.csv'
+    # print("Looping across the different files: ")
+    # for instance in file['_via_img_metadata']:
+    #     print(file['_via_img_metadata'][instance]['filename'])
+
+    print("Looping across different classes and offsets")
+    for instance in file['_via_img_metadata']:
+        print(file['_via_img_metadata'][instance]['filename'])
+        for region in file['_via_img_metadata'][instance]['regions']:
+            xmin = region['shape_attributes']['x']
+            ymin = region['shape_attributes']['y']
+            xmax = xmin + region['shape_attributes']['width']
+            ymax = ymin + region['shape_attributes']['height']
+            ob_cls = int(region['region_attributes']['backpack'])
+            print("Class:", ob_cls, "  Offsets:", xmin,ymin,xmax,ymax)
+
+def main():
+    json_file = '../dsp_intent_analyzer_dataset/object_data.json'
     object_data_dir = '../dsp_intent_analyzer_dataset/object_data'
 
-    dataset = ObjectPositionDataset(csv_path,object_data_dir)
-
+    dataset = ObjectPositionDataset(json_file,object_data_dir)
 
     for i in range(len(dataset)):
         sample = dataset[i]
 
         # Extract data
-        print(sample['uid'])
         image = sample['image']
-        y_cls = sample['class']
-        y_offset = sample['offset']
-        print(y_cls,y_offset)
+        regions = sample['regions']
 
-        xmin = y_offset[0][0]
-        ymin = y_offset[0][1]
-        xmax = y_offset[1][0]
-        ymax = y_offset[1][1]
+        # Extract all classes for the image
+        start = False
+        for region in regions:
+            xmin = region['shape_attributes']['x']
+            ymin = region['shape_attributes']['y']
+            xmax = xmin + region['shape_attributes']['width']
+            ymax = ymin + region['shape_attributes']['height']
+            ob_cls = region['region_attributes']['backpack']
 
-        fig, ax = plt.subplots(figsize=(10, 6))
-        plt.imshow(image, cmap='gray')
-        plt.title(str(y_cls))
+            if not start:
+                fig, ax = plt.subplots(figsize=(10, 6))
+                plt.imshow(image, cmap='gray')
+                plt.title(str(ob_cls))
 
-        rect = mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
-                                  fill=False, edgecolor='red', linewidth=2)
-        ax.add_patch(rect)
-        plt.show()
+                start = True
 
-        if i > 5:
-            break
+            rect = mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+                                      fill=False, edgecolor='red', linewidth=2)
+            ax.add_patch(rect)
+            plt.show(block=False)
+            plt.pause(0.1)
+        break
 
+if __name__ == '__main__':
+    main()
+
+    # Testing json look
+    # looping_json()
 
 
 

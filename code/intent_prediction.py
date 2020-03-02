@@ -61,7 +61,15 @@ import utils
 
 class IntentPredictionNetwork():
 
-    def __init__(self):
+    def __init__(self, debug=0):
+        """
+            Debugging mode
+            0: No debugging
+            1: Image Debugging (Displays image as the frame goes through the architecture)
+            2: Video Debugging (Saves all the model output into a video)
+        """
+
+
         # Predict Object Classifications of objects
         # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
         cfg = get_cfg()
@@ -91,12 +99,19 @@ class IntentPredictionNetwork():
         self.OOIs = []
 
         # default to not debug
-        self.debug = 0 # For frame-by-frame debugging
-        self.debug_vid = 0 # For whole video debugging
+        if not debug:
+            self.debug = 0 # For frame-by-frame debugging
+            self.debug_vid = 0 # For whole video debugging
+        elif debug == 1:
+            self.debug = 1 # For frame-by-frame debugging
+            self.debug_vid = 0 # For whole video debugging
+        else:
+            self.debug = 0 # For frame-by-frame debugging
+            self.debug_vid = 1 # For whole video debugging
 
     # Input: Video
     # Output: Task Category
-    def predictTask(self, vid, destvid='../dsp_intent_analyzer/draw_vids/tmp', new_fps=3):
+    def predictTask(self, vidpath, dest, new_fps=3):
 
         # Initialize loop
         vid = cv2.VideoCapture(vidpath) # Get the video
@@ -105,7 +120,8 @@ class IntentPredictionNetwork():
         total_frames = int(vid.get(cv2.CAP_PROP_FRAME_COUNT)) # For total loops
 
         if self.debug_vid:
-            stateIndicator = utils.Drawer() # Initialize the drawing tool
+            stateIndicator = utils.Drawer(fps=3) # Initialize the drawing tool
+
 
         # Loop for getting the head detection for all frames
         start_time = time.time()
@@ -127,6 +143,9 @@ class IntentPredictionNetwork():
                 # Apply head detection
                 head_pos = self.headDetect(new_img)
 
+                # Apply Object Recognition
+                object_preds = self.objectRecog(new_img)
+
                 # Head Position Filter
                 enable = self.posFilter(head_pos)
 
@@ -135,6 +154,13 @@ class IntentPredictionNetwork():
 
                 # For visualization
                 if self.debug_vid:
+                    # For detecting objects
+                    for pred in object_preds:
+                        bgColor = (0,0,128)
+                        origin = (int(pred['offset'][0]), int(pred['offset'][1]))
+                        endpt = (int(pred['offset'][2]), int(pred['offset'][3]))
+                        cv2.rectangle(new_img, origin, endpt, bgColor, 3)
+
                     # Apply human keypoint for visualization
                     outputs = self.human_keypoint(new_img)
 
@@ -155,11 +181,13 @@ class IntentPredictionNetwork():
                         current_task = 'spont'
                         new_img = stateIndicator.drawTask(imOut, 'spont')
 
+        diff_time = time.time() - start_time
+        print(f"Percent Completion: 100%  for {diff_time}s passed.")
 
 
         # Save the video output
         if self.debug_vid:
-            stateIndicator.getRecording(destvid, new_fps)
+            stateIndicator.getRecording(dest, new_fps)
 
         task_category = 'spont'
         return task_category
@@ -167,10 +195,10 @@ class IntentPredictionNetwork():
     # Output: head_pos, head_img
     def headDetect(self, img):
         # Preprocess the image first
-        resized = self.preProcess(img)
+        # img = self.preProcess(img)
 
         # Use detectron2 to extract human keypoints
-        outputs = self.human_keypoint(resized)
+        outputs = self.human_keypoint(img)
 
         # No head detected
         if len(outputs["instances"].pred_classes) == 0:
@@ -188,7 +216,7 @@ class IntentPredictionNetwork():
         right_eye = x[0][2][0:2].to("cpu").numpy()
 
         # For ablation study: Check which has better accuracy
-        eye_pos = (left_eye+right_eye)/(224*2)
+        eye_pos = (left_eye+right_eye)/2
 
         # Shows the output image from model
         if self.debug:
@@ -264,8 +292,8 @@ class IntentPredictionNetwork():
             plt.imshow(v.get_image()[:, :, ::-1], CMAP='gray')
             plt.show(block=True)
 
-        classes = output['instances'].pred_classes
-        offsets = output['instances'].pred_boxes
+        classes = outputs['instances'].pred_classes
+        offsets = outputs['instances'].pred_boxes
 
         pred_list = []
         start = False
@@ -300,7 +328,7 @@ class IntentPredictionNetwork():
                 'offset': y_offset
             }
 
-            pred_list.append()
+            pred_list.append(pred)
 
 
             # objectOfInterest = {}
@@ -309,7 +337,8 @@ class IntentPredictionNetwork():
             # finalpt = (0,0) # (xmax,ymax)
             # objectOfInterest['boundbox'] = [originpt, finalpt]
 
-        self.OOIs.append(objectOfInterest)
+        # self.OOIs.append(objectOfInterest)
+        return pred_list
 
     # Output:
     # Gaze Label
@@ -364,13 +393,14 @@ class IntentPredictionNetwork():
         return decision
 
 def main():
-    # vidpath = './raw_vids/001_Task5_2.MOV'
+    vidpath = '../dsp_intent_analyzer_dataset/raw_vids/001_Task5_2.MOV'
+    destvid = 'recogOut'
 
     # Initialize model
-    network = IntentPredictionNetwork()
+    network = IntentPredictionNetwork(debug=2)
 
     # # Output video is saved in "vidss" folder
-    # classifier.predictTask(vidpath, '../dsp_intent_analyzer/recogOut', 3)
+    network.predictTask(vidpath, destvid, 2)
 
     # dummy
     # path = os.getcwd()

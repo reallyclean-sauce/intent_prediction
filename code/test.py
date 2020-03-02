@@ -18,11 +18,13 @@ import os
 import torch
 import pandas as pd
 from skimage import io, transform
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_absolute_error
 import numpy as np
 import json
 import time
+import shutil
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
@@ -31,53 +33,275 @@ from head_dataset import HeadPositionDataset, showHeadPosition
 from object_dataset import ObjectPositionDataset
 from intent_prediction import IntentPredictionNetwork
 
+numcoco2label = {
+    25: 'backpack',
+    26: 'umbrella',
+    39: 'racket',
+    40: 'bottle',
+    42: 'cup',
+    43: 'fork',
+    44: 'knife',
+    45: 'spoon',
+    46: 'bowl',
+    47: 'banana',
+    48: 'apple',
+    49: 'sandwich',
+    50: 'orange',
+    64: 'laptop',
+    65: 'mouse',
+    67: 'keyboard',
+    68: 'phone',
+    74: 'book',
+    75: 'clock',
+    80: 'toothbrush'
+}
 
-def get_object_gt(dataset):
+def create_object_gt(dataset, root_dir):
     """
     Args:
         dataset: gets the ground truth for the object
-            elements: 'uid', 'y_cls', 'y_offset'
+        root_dir: root directory of images
     """
-    gt_list = []
+    gt_dir = os.path.join(root_dir, 'groundtruths')
+
+    if not os.path.exists(gt_dir):
+        os.mkdir(gt_dir)
+
+
     for i in range(len(dataset)):
         sample = dataset[i]
 
-        uid = sample['uid']
+        filename = sample['name']
         image = sample['image']
-        y_cls = sample['class']
-        y_offset = sample['offset']
+        regions = sample['regions']
 
-        gt_sample = {
-            'uid': uid,
+        # Replace .png with .txt
+        filename = filename.split('.')[0]
+        filename = f'{filename}.txt'
+
+        # Prepare the gt text file path
+        gt_file = os.path.join(gt_dir, filename)
+
+        # Delete file if it exist
+        if os.path.exists(gt_file):
+            os.remove(gt_file)
+
+        # Create new file for appending
+        with open(gt_file, mode='x') as file:
+            print(f'Recreated {gt_file}')
+
+        # Loop across all predictions
+        for region in regions:
+            # Get the prediction
+            y_cls = int(region['region_attributes']['backpack'])
+            y_cls = numcoco2label[y_cls]
+            left = region['shape_attributes']['x']
+            top = region['shape_attributes']['y']
+            right = left + region['shape_attributes']['width']
+            bottom = top + region['shape_attributes']['height']
+
+            data_format = f'{y_cls} {int(left)} {int(top)} {int(right)} {int(bottom)}'
+            # Write the predictions into the file
+            with open(gt_file, mode='a+') as f:
+                # print(data_format)
+                f.write(data_format)
+                f.write('\n')
+
+
+def create_object_pred(dataset, root_dir, network):
+    """
+    Args:
+        dataset: gets the ground truth for the object
+        root_dir: root directory of images
+        network: network used for predictions
+    """
+    pred_dir = os.path.join(root_dir, 'detections')
+
+    if not os.path.exists(pred_dir):
+        os.mkdir(pred_dir)
+
+    for i in range(len(dataset)):
+        sample = dataset[i]
+
+        # Required data
+        filename = sample['name']
+        image = sample['image']
+        output = network.object_recog(image)
+        classes = output['instances'].pred_classes
+        offsets = output['instances'].pred_boxes
+        scores = output['instances'].scores
+
+        # Replace .png with .txt
+        filename = filename.split('.')[0]
+        filename = f'{filename}.txt'
+
+        # Prepare the gt text file path
+        pred_file = os.path.join(pred_dir, filename)
+
+        # Delete file if it exist and create new
+        if os.path.exists(pred_file):
+            os.remove(pred_file)
+
+        # Create new file for appending
+        with open(pred_file, mode='x') as file:
+            print(f'Recreated {pred_file}')
+
+        # Loop across all predictions
+        for y_cls,y_offset,y_score in zip(classes,offsets,scores):
+            if torch.is_tensor(y_offset):
+                y_offset = y_offset.tolist()
+
+            # Get the prediction
+            left = y_offset[0]
+            top = y_offset[1]
+            right = y_offset[2]
+            bottom = y_offset[3]
+
+            y_cls = int(y_cls.to('cpu'))+1
+            if not y_cls in numcoco2label:
+                # print("Not needed")
+                continue
+
+            y_cls = numcoco2label[y_cls]
+            y_score = y_score.to('cpu')
+
+            data_format = f'{y_cls} {y_score} {int(left)} {int(top)} {int(right)} {int(bottom)}'
+            # Write the predictions into the file
+            with open(pred_file, mode='a') as f:
+                f.write(data_format)
+                f.write('\n')
+                # print(data_format)
+
+
+
+# For checking the functionality of the object_detection network
+def view_objectRecog(network):
+    # Initialize model
+    network = IntentPredictionNetwork()
+
+    # Object Recognition
+    imgpath = '../dsp_intent_analyzer_dataset/head_data/019_gaze_utensils.png'
+    image = io.imread(imgpath)
+
+    # output = network.object_recog(image)
+    # classes = output['instances'].pred_classes
+    # offsets = output['instances'].pred_boxes
+
+
+    outputs = network.objectRecog(image)
+
+    pred_list = []
+    name_list = []
+
+
+    start = False
+    for pred in outputs:
+        y_cls = pred['class']
+        y_offset = pred['offset']
+
+        xmin,ymin,xmax,ymax = y_offset
+        # print(y_cls.to('cpu'),y_offset.to('cpu'))
+
+        if not start:
+            # Visualize
+            fig, ax = plt.subplots(figsize=(10, 6))
+            plt.imshow(image, cmap='gray')
+            plt.title(str(y_cls.to('cpu')))
+
+            start = True
+
+        rect = mpatches.Rectangle((xmin, ymin), xmax - xmin, ymax - ymin,
+                                  fill=False, edgecolor='red', linewidth=2)
+        ax.add_patch(rect)
+        plt.show(block=False)
+        plt.pause(0.1)
+
+        # Extract Prediction
+        y_offset = y_offset.to('cpu')
+        y_cls = y_cls.to('cpu')
+
+        pred = {
+            'uid': imgpath,
             'class': y_cls,
             'offset': y_offset
         }
 
-        gt_list.append(gt_sample)
+        pred_list.append(pred)
 
-    return gt_list
 
-def get_object_pred(network, dataset):
+    plt.show(block=True)
+
+    return pred_list
+
+def val_objectRecog(dataset, root_dir, network, dst_dir):
+    create_object_pred(dataset, root_dir, network)
+    create_object_gt(dataset, root_dir)
+
+    # Get src directory
+    src_pred = os.path.join(root_dir, 'detections')
+    dst_pred = os.path.join(dst_dir, 'detections')
+
+    # Get all files in src directory
+    for file in os.listdir(src_pred):
+
+        # Copy files in src directory to dst directory
+        src_file = os.path.join(src_pred, file)
+        shutil.copy(src_file,dst_pred)
+        # print(src_file, dst_dir)
+
+
+
+    # Get src directory
+    src_pred = os.path.join(root_dir, 'groundtruths')
+    dst_pred = os.path.join(dst_dir, 'groundtruths')
+
+    # Get all files in src directory
+    for file in os.listdir(src_pred):
+
+        # Copy files in src directory to dst directory
+        src_file = os.path.join(src_pred, file)
+        shutil.copy(src_file,dst_pred)
+        # print(src_file, dst_dir)
+
+
+def view_headDetect(network, dataset):
     """
-    Args:
-        dataset: gets the ground truth for the object
-            elements: 'uid', 'y_cls', 'y_offset'
+    Here are the ground truth.
     """
-    pred_list = []
+
+    start_time = time.time()
     for i in range(len(dataset)):
         sample = dataset[i]
 
-        uid = sample['uid']
-        image = sample['image']
-        y_cls = sample['class']
-        y_offset = sample['offset']
+        # print(sample['head_pos'], type(sample['head_pos']))
 
-        output = network.objectRecog(image)
+        # Append the ground truth and the prediction
+        pred = network.headDetect(sample['image'])
+        sample['head_pos'] = np.append(sample['head_pos'], [pred], axis=0)
+        sample['head_pos'] = sample['head_pos'].astype(float).reshape(-1,2)
 
-        pred_list.append(gt_sample)
+        # Visualize the video
+        plt.figure()
+        ax = plt.subplot(1,1,1)
+        plt.tight_layout()
+        ax.set_title(f'Sample #{i}')
+        ax.axis('off')
+        showHeadPosition(**sample)
+        plt.show()
+        plt.pause(0.001)
+
+        runtime = time.time() - start_time
+        percent_completion = float(i / len(dataset)) * 100
+        # print(f'Total time taken: {runtime}s  Percent Completion: {percent_completion}%')
+
+        if i == 3:
+          plt.show()
+          break
 
 
-def evaluateHeadModel(network, dataset):
+
+
+def val_headDetect(network, dataset):
     # fig = plt.figure()
 
     # Extract the ground truth
@@ -90,23 +314,24 @@ def evaluateHeadModel(network, dataset):
         # Preprocess the data
         x,y,_ = sample['image'].shape
 
-        # Append the ground truth
+        # Get sample of ground truth and prediction
         truth = sample['head_pos']
-        y_true = np.append(y_true, [float(truth[0][0]/x), float(truth[0][1]/y)])
-        # y_true = np.append(y_true, [float(truth[0][0]), float(truth[0][1])])
-
-        # Get the prediction then append
         pred = network.headDetect(sample['image'])
-        y_pred = np.append(y_pred, [float(pred[0]/x), float(pred[1]/y)])
-        # y_pred = np.append(y_pred, [float(pred[0]), float(pred[1])])
+
+        # Remove the extremities
+        if mean_absolute_error(pred,[truth[0][0], truth[0][1]]) > 50.0:
+            print(pred, [truth[0][0], truth[0][1]])
+            continue
+
+        # Append the sample of gt and pred
+        y_true = np.append(y_true, [float(truth[0][0]/y), float(truth[0][1]/x)])
+        y_pred = np.append(y_pred, [float(pred[0]/y), float(pred[1]/x)])
 
         if not i % 10:
           runtime = time.time() - start_time
           percent_completion = float(i / len(dataset)) * 100
           print(f'Total time taken: {runtime}s  Percent Completion: {percent_completion}%')
 
-        # if i > 5:
-        #   break
 
     runtime = time.time() - start_time
     percent_completion = float(i / len(dataset)) * 100
@@ -123,41 +348,68 @@ def evaluateHeadModel(network, dataset):
 
     return loss
 
-
 def main():
 
-    csv_file = '../dsp_intent_analyzer_dataset/object_data.csv'
-    root_dir = '../dsp_intent_analyzer_dataset/object_data'
+    # Get head data and model
+    csv_file = '../dsp_intent_analyzer_dataset/random_head.csv'
+    root_dir = '../dsp_intent_analyzer_dataset/head_data'
 
-    object_pos_dataset = ObjectPositionDataset(csv_file,root_dir)
+    head_pos_dataset = HeadPositionDataset(csv_file,root_dir)
     architecture = IntentPredictionNetwork()
 
-    for i in range(len(object_pos_dataset)):
-        sample = object_pos_dataset[i]
+    print("TESTING THE HEAD DETECTION MODEL")
+    time.sleep(1)
+    print("Visualizing the head detection model prediction.")
+    view_headDetect(architecture, head_pos_dataset)
+    time.sleep(3)
 
-        uid = sample['uid']
-        image = sample['image']
-        y_cls = sample['class']
-        y_offset = sample['offset']
+    # Get accuracy of head detection
+    print("Getting the accuracy of the model for the overall dataset.")
+    accuracy = val_headDetect(architecture, head_pos_dataset)
+    print(f'Head detection model has an error of {accuracy} using mean absolute error.')
+    time.sleep(3)
 
-        # bounding box coordinates ground truth
-        xmin = y_offset[0][0]
-        ymin = y_offset[0][1]
-        xmax = y_offset[1][0]
-        ymax = y_offset[1][1]
+    # Get data from object
+    json_file = '../dsp_intent_analyzer_dataset/object_data.json'
+    root_dir = '../dsp_intent_analyzer_dataset/object_data'
 
-        # Predict the class and offset
+    object_pos_dataset = ObjectPositionDataset(json_file, root_dir)
+
+    # Visualize the object detection
+    print("TESTING THE OBJECT RECOGNITION MODEL")
+    time.sleep(1)
+    print("Visualizing the object detection model prediction.")
+    view_objectRecog(architecture)
+    time.sleep(3)
 
 
+    # src_dir = '../dsp_intent_analyzer_dataset/object_data'
+    dst_dir = '../Object-Detection-Metrics'
+    val_objectRecog(object_pos_dataset, root_dir, architecture, dst_dir)
+    print("Finished creating object detection outputs. Now proceeding to evaluation...")
+    time.sleep(3)
 
+    # Testing Object Detection (WARNING BAD CODING HERE)
+    os.system('python ../Object-Detection-Metrics/pascalvoc.py -gtformat xyrb -detformat xyrb -t 0.50')
+    time.sleep(3)
 
-    print(accuracy)
+    print("TESTING THE INTENT PREDICTION MODEL")
+    time.sleep(1)
+    vidpath = '../dsp_intent_analyzer_dataset/raw_vids/001_Task5_2.MOV'
+    destvid = 'recogOut'
+    timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(time.time()))
+    timestamp = timestamp.replace(' ', '_')
+    architecture.debug_vid = 1
+    architecture.predictTask(vidpath, timestamp, 3)
+    time.sleep(3)
+
+    # Transferring to local machine for viewing
+    print("Transferring to Local Machine")
+    os.system(f'scp ../dsp_intent_analyzer_dataset/draw_vids/{timestamp}.avi jericolinux@10.80.65.162:~/workspace/codes/thesis/intent_prediction/dsp_intent_analyzer_dataset/draw_vids')
 
 
 
 
 if __name__ == '__main__':
     main()
-
-
 

@@ -16,11 +16,12 @@ import matplotlib.patches as mpatches
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 
-def showHeadPosition(uid, image, head_pos):
+def showHeadPosition(name, image, head_pos):
     """
     Show the position of the head
     in the image
     """
+    print(name)
     plt.imshow(image)
     plt.scatter(head_pos[:,0], head_pos[:,1], s=10, marker='.', c='r')
     plt.pause(0.001) # For loading the image
@@ -68,7 +69,7 @@ class HeadPositionDataset(Dataset):
         head_pos = head_pos.astype('float').reshape(-1,2)
 
         sample = {
-            'uid': img_name,
+            'name': img_name,
             'image': image,
             'head_pos': head_pos
         }
