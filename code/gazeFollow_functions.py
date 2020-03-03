@@ -9,6 +9,8 @@ import torch.nn.functional as F
 from torch.nn import DataParallel
 from gazeFollow.gazenet import GazeNet
 
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
 
 import time
 import os
@@ -78,6 +80,13 @@ def preprocess_image(image_path, eye):
 
     # generate gaze field
     gaze_field = generate_data_field(eye_point=eye)
+    # print(gaze_field.shape)
+    # # gaze_arr = gaze_field.cpu().data.numpy()
+    # # print(gaze_arr.shape)
+    # fig, ax = plt.subplots(figsize=(10, 6))
+    # plt.imshow(gaze_field[1])
+    # plt.show()
+
     sample = {'image' : image,
               'face_image': face_image,
               'eye_position': torch.FloatTensor(eye),
@@ -94,7 +103,8 @@ def test(net, test_image_path, eye):
     image, face_image, gaze_field, eye_position = data['image'], data['face_image'], data['gaze_field'], data['eye_position']
     image, face_image, gaze_field, eye_position = map(lambda x: Variable(x.unsqueeze(0).cuda(), volatile=True), [image, face_image, gaze_field, eye_position])
 
-    _, predict_heatmap = net([image, face_image, gaze_field, eye_position])
+    direction, predict_heatmap = net([image, face_image, gaze_field, eye_position])
+
     # print("Heatmap Type: ")
     # print(type(predict_heatmap))
     # print(predict_heatmap.shape)
@@ -108,7 +118,7 @@ def test(net, test_image_path, eye):
     f_point = np.array([w_index / 56., h_index / 56.])
 
 
-    return heatmap, f_point[0], f_point[1]
+    return direction, heatmap, f_point[0], f_point[1]
 
 def draw_result(image_path, eye, heatmap, gaze_point):
     x1, y1 = eye
@@ -132,7 +142,7 @@ def draw_result(image_path, eye, heatmap, gaze_point):
     cv2.imwrite('tmp2.png', heatmap)
     return heatmap
 
-def heatmap_gen(model_path, test_image_path, x, y):
+def dir_and_heatmap_gen(model_path, test_image_path, x, y):
 
     net = GazeNet()
     net = DataParallel(net)
@@ -153,12 +163,12 @@ def heatmap_gen(model_path, test_image_path, x, y):
 
     #Inference
     # start = time.time()
-    heatmap, p_x, p_y = test(net, test_image_path, (x, y))
+    direction, heatmap, p_x, p_y = test(net, test_image_path, (x, y))
     # end = time.time()
     # print("Time elapsed: ", end - start)
     # draw_result(test_image_path, (x, y), heatmap, (p_x, p_y))
-    print(p_x, p_y)
-    return heatmap, p_x, p_y
+    # print(p_x, p_y)
+    return direction, heatmap, p_x, p_y
 
 if __name__ == '__main__':
-    heatmap_gen("model_epoch25.pkl", "new.jpg", float('0.54'), float('0.32'))
+    dir_and_heatmap_gen("model_epoch25.pkl", "new.jpg", float('0.54'), float('0.32'))

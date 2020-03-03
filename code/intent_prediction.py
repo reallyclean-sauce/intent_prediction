@@ -265,12 +265,12 @@ class IntentPredictionNetwork():
 
     # Output: Gaze pt
     # Size: 224x224 image
-    def predictHeatMap(self, img, gaze_pathway):
+    def predict_Direction_and_HeatMap(self, img, gaze_pathway):
 
         # Can also return Gaussian heatmap if needed
-        heatmap, gaze_pt[0], gaze_pt[1] = gFf.heatmap_gen("", "", eye_pos[0], eye_pos[1])
+        direction, heatmap, gaze_pt[0], gaze_pt[1] = gFf.dir_and_heatmap_gen("", "", eye_pos[0], eye_pos[1])
 
-        return gaze_pt
+        return direction, gaze_pt
 
     # Output: List of object labels and positions
     # [0,81]: Labels
