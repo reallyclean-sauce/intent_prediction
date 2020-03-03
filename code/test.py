@@ -405,7 +405,7 @@ def main():
 
     # Transferring to local machine for viewing
     print("Transferring to Local Machine")
-    os.system(f'scp ../dsp_intent_analyzer_dataset/draw_vids/{timestamp}.avi jericolinux@10.80.65.162:~/workspace/codes/thesis/intent_prediction/dsp_intent_analyzer_dataset/draw_vids')
+    #os.system(f'scp ../dsp_intent_analyzer_dataset/draw_vids/{timestamp}.avi jericolinux@10.80.65.162:~/workspace/codes/thesis/intent_prediction/dsp_intent_analyzer_dataset/draw_vids')
 
 
 

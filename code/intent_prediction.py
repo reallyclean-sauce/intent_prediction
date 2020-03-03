@@ -18,6 +18,8 @@ setup_logger()
 
 # import important libraries
 import sys
+#sys.path.insert(0, '../gazeFollow')
+
 import time
 import os
 import numpy as np
@@ -58,6 +60,10 @@ from torch.nn import DataParallel
 
 # Import gazeFollow Libraries
 import utils
+
+
+# Import from gF functions
+import gazeFollow_functions as gFf
 
 class IntentPredictionNetwork():
 
@@ -230,40 +236,39 @@ class IntentPredictionNetwork():
 
     # Output: Gaze Pathway Probability Map
     # Size: 224x224
-    def predictGazeDir(self, img, head_pos):
-        # Get head img
-        # crop face
-        x_c, y_c = head_pos
-        x_0 = x_c - 0.15
-        y_0 = y_c - 0.15
-        x_1 = x_c + 0.15
-        y_1 = y_c + 0.15
-        if x_0 < 0:
-            x_0 = 0
-        if y_0 < 0:
-            y_0 = 0
-        if x_1 > 1:
-            x_1 = 1
-        if y_1 > 1:
-            y_1 = 1
+    # def predictGazeDir(self, img, head_pos):
+    #     # Get head img
+    #     # crop face
+    #     x_c, y_c = head_pos
+    #     x_0 = x_c - 0.15
+    #     y_0 = y_c - 0.15
+    #     x_1 = x_c + 0.15
+    #     y_1 = y_c + 0.15
+    #     if x_0 < 0:
+    #         x_0 = 0
+    #     if y_0 < 0:
+    #         y_0 = 0
+    #     if x_1 > 1:
+    #         x_1 = 1
+    #     if y_1 > 1:
+    #         y_1 = 1
 
-        h, w = img.shape[:2]
-        head_img = img[int(y_0 * h):int(y_1 * h), int(x_0 * w):int(x_1 * w), :]
+    #     h, w = img.shape[:2]
+    #     head_img = img[int(y_0 * h):int(y_1 * h), int(x_0 * w):int(x_1 * w), :]
 
-        # Insert code here
-        # Provide visualization for debugging of gaze direction
+    #     # Insert code here
+    #     # Provide visualization for debugging of gaze direction
 
 
-        return gaze_pathway
+    #     return gaze_pathway
 
 
     # Output: Gaze pt
     # Size: 224x224 image
     def predictHeatMap(self, img, gaze_pathway):
-        # Insert code here
 
-        # Provide visualization for debugging of gaze pt
-        # And Heat map
+        # Can also return Gaussian heatmap if needed
+        heatmap, gaze_pt[0], gaze_pt[1] = gFf.heatmap_gen("", "", eye_pos[0], eye_pos[1])
 
         return gaze_pt
 

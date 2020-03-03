@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from torch.nn import DataParallel
 from gazeFollow.gazenet import GazeNet
 
+
 import time
 import os
 import numpy as np
@@ -94,10 +95,10 @@ def test(net, test_image_path, eye):
     image, face_image, gaze_field, eye_position = map(lambda x: Variable(x.unsqueeze(0).cuda(), volatile=True), [image, face_image, gaze_field, eye_position])
 
     _, predict_heatmap = net([image, face_image, gaze_field, eye_position])
-    print("Heatmap Type: ")
-    print(type(predict_heatmap))
-    print(predict_heatmap.shape)
-    print(max(predict_heatmap))
+    # print("Heatmap Type: ")
+    # print(type(predict_heatmap))
+    # print(predict_heatmap.shape)
+    # print(max(predict_heatmap))
 
     final_output = predict_heatmap.cpu().data.numpy()
 
@@ -131,31 +132,33 @@ def draw_result(image_path, eye, heatmap, gaze_point):
     cv2.imwrite('tmp2.png', heatmap)
     return heatmap
 
-def main():
+def heatmap_gen(model_path, test_image_path, x, y):
 
     net = GazeNet()
     net = DataParallel(net)
     net.cuda()
 
     #Define Variables
-    model_path = 'model_epoch25.pkl'
-    x = float('0.38')
-    y = float('0.22')
-    test_image_path = 'IMG_5076.JPG'
+    # model_path = 'model_epoch25.pkl'
+    # x = float('0.38')
+    # y = float('0.22')
+    # test_image_path = 'IMG_5076.JPG'
 
     #Load Model
     pretrained_dict = torch.load(model_path)
+    model_dict = net.state_dict()
     pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict}
     model_dict.update(pretrained_dict)
     net.load_state_dict(model_dict)
 
     #Inference
-    start = time.time()
+    # start = time.time()
     heatmap, p_x, p_y = test(net, test_image_path, (x, y))
-    end = time.time()
-    print("Time elapsed: ", end - start)
-    draw_result(test_image_path, (x, y), heatmap, (p_x, p_y))
+    # end = time.time()
+    # print("Time elapsed: ", end - start)
+    # draw_result(test_image_path, (x, y), heatmap, (p_x, p_y))
     print(p_x, p_y)
+    return heatmap, p_x, p_y
 
 if __name__ == '__main__':
-    main()
+    heatmap_gen("model_epoch25.pkl", "new.jpg", float('0.54'), float('0.32'))
