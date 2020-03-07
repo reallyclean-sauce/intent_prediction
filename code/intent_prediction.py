@@ -399,12 +399,13 @@ class IntentPredictionNetwork():
 
 def main():
     vidpath = '../dsp_intent_analyzer_dataset/raw_vids/001_Task5_2.MOV'
-    destvid = 'recogOut'
+
 
     # Initialize model
     network = IntentPredictionNetwork(debug=2)
 
-    # # Output video is saved in "vidss" folder
+    # Output video is saved in "vidss" folder
+    destvid = 'recogOut'
     network.predictTask(vidpath, destvid, 2)
 
     # dummy
