@@ -4,3 +4,6 @@
 [submodule "detectron2_repo"]
 	path = detectron2_repo
 	url = https://github.com/facebookresearch/detectron2.git
+[submodule "GazeFollowing"]
+	path = GazeFollowing
+	url = https://github.com/svip-lab/GazeFollowing.git
