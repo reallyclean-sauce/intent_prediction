@@ -7,3 +7,6 @@
 [submodule "GazeFollowing"]
 	path = GazeFollowing
 	url = https://github.com/svip-lab/GazeFollowing.git
+[submodule "Object-Detection-Metrics"]
+	path = Object-Detection-Metrics
+	url = https://github.com/rafaelpadilla/Object-Detection-Metrics.git
